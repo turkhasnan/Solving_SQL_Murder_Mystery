@@ -1,0 +1,100 @@
+-- It said to start off with the crime_scene_report 
+-- with specific filters: Jan. 15, 2018, murder crime, located in SQL City
+select *
+from crime_scene_report
+where date = 20180115 and type = 'murder' and city = 'SQL City';
+/*3 murders: and the last murder has a clue:
+	1st witness lives on last house Northwestern Dr (no name)
+	2nd witness from Franklin Ave (Annabel)*/
+
+-- Lets see who lives on these streets
+select name, address_number, address_street_name
+from person
+-- where address_street_name = 'Franklin Ave and name like 'Annabel_Miller'
+where address_street_name = 'Northwestern Dr'
+order by address_number desc;
+-- Annabel Miller 103 Franklin Ave 
+-- A ton of names on Northwestern Dr
+-- but possible witnesses from 'last house' 
+-- Morty Schapiro or Kinsey Erickson
+
+-- Lets look through interviews to find a clue that the witnesses might have said
+select gfnm.name, i.transcript
+from get_fit_now_member gfnm left join interview i on gfnm.person_id = i.person_id
+where gfnm.name like 'Annabel%';
+--Annabel saw the murder happen and recognized the killer from the gym on Jan. 9th = 20180109
+
+-- Need to see if id is the same as membership_id
+select id, name
+from get_fit_now_member
+where name like '%Annabel%';
+-- id is the same as membership_id so we can just join the tables to get names
+
+-- Lets see who went to the gym on January 9th 2018
+select membership_id, gfnm.name, check_in_time, check_out_time
+from get_fit_now_check_in gfnci 
+	left join get_fit_now_member gfnm 
+	on gfnci.membership_id = gfnm.id 
+where check_in_date = 20180109;
+
+-- Lets do the same thing but join the street address 
+-- (Note: I did this thinking that the addresses had something to do with it)
+-- and narrow down the time to evenings when Annabel is at the gym
+select membership_id, gfnm.name, check_in_time, check_out_time, p.address_street_name
+from get_fit_now_check_in gfnci 
+	left join get_fit_now_member gfnm 
+	on gfnci.membership_id = gfnm.id 
+	left join person p 
+	on gfnm.person_id = p.id
+where check_in_date = 20180109 and check_in_time >= 1530 and check_out_time <= 1730;
+-- 2 others were at the gym Joe Germuska (lol a contributor) and Jeremy Bowers
+
+-- I want to find out if they were interviewed
+select p.name, i.transcript
+from person p left join interview i on p.id = i.person_id
+where (p.name like 'Annabel_Miller' or p.name like 'Joe_Germuska' or p.name like 'Jeremy_Bowers');
+-- Clue from Jeremy: 
+-- hired by rich woman: 65"-67", red hair, tesla model s, sql symph 3 times in December 2017
+
+-- 2 ways we can go about this:
+-- First way - 
+-- we look through the FB events and see who went to the concert 3 times
+-- and investigate their wealth
+select p.name, count(p.name) quantity, fec.event_name
+from facebook_event_checkin fec left join person p on fec.person_id = p.id
+where fec.event_name = 'SQL Symphony Concert' and fec.date like '201712%'
+group by p.name
+order by quantity desc
+limit 2; 
+-- added the limit because there were only 2 people who went 3 times:
+-- Bryan Pardo and Miranda Priestly
+-- Jeremy said that a rich woman hired him. 
+
+-- Well I don't want to assume gender, so let's find their ssn and get their income
+select i.annual_income, p.name
+from income i left join person p on i.ssn = p.ssn
+where (p.name like 'Miranda_Priestly' or p.name like 'Bryan%');
+-- Miranda is def rich w/ 310k income, but Bryan does not have a ssn...
+-- Interesting...
+
+-- Need to confirm that Bryan has an ssn and is in Person table
+select name, ssn
+from person
+where name like 'Bryan_Pardo';
+-- Bryan's ssn is 816663882 so let's see if an income matches the ssn
+select i.annual_income, p.name
+from income i left join person p on i.ssn = p.ssn
+where i.ssn = 816663882;
+-- no result. So, we move on to Miranda.
+
+-- Lets match Miranda's description with what Jeremy said
+-- joining person table and driver's license
+select p.name, d.height, d.hair_color, d.gender, d.car_make, d.car_model
+from person p left join drivers_license d on p.license_id = d.id
+where name like 'Miranda_Priestly';
+-- everything matches Jeremy's description
+
+/*With that being said, Jeremy is probably the killer since they were recognized
+	by Annabel at the gym. Jeremy also said he was hired by a rich woman. 
+	Rich woman concluded to be Miranda and confirmed description.
+	Miranda is the real mastermind.*/
